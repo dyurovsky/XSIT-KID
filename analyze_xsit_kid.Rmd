@@ -1,5 +1,5 @@
 ---
-title: "Developmental changed in Statistical Word Learning"
+title: "Developmental changes in statistical word learning"
 author: "Daniel Yurovsky & Michael C. Frank"
 date: "`r Sys.Date()`"
 output:
@@ -38,6 +38,7 @@ MIN_LANG = 75
 MIN_EXAMPLE_CORRECT = 8
 RT_SDS = 3
 ```
+
 ## Experiment 1 ##
 
 Read in the data and do exclusions
@@ -99,7 +100,7 @@ e1_clean_data <-  e1_rt_exclusion_data %>%
 
 At the end of data collection, we had demographic information and data for `r e1_total_n` children. Of these, `r e1_excluded_n` were dropped due to notes from the experimenter indicating significant problems with the experiment. 
 
-`r e1_low_language_n` children then excluded due to hearing <`r MIN_LANG`% English at home, and `e1_r exclude_example_n` additional children were dropped from further analysis due to incorrect responses on at least 1 example trial, leaving us in doubt about whether they understood the task. 
+`r e1_low_language_n` children then excluded due to hearing <`r MIN_LANG`% English at home, and `r e1_exclude_example_n` additional children were dropped from further analysis due to incorrect responses on at least 1 example trial, leaving us in doubt about whether they understood the task. 
 
 We finally performed one last round of exclusions, dropping individual trials for which the log respones time was more than 3 standard deviations away from the mean. This criterion led to excluding `r mutate(e1_rt_excluded, total = n * num_subjs) %>% summarise(total = sum(total)) %>% as.numeric` total trials, one trial for each of `r e1_rt_excluded[1,"num_subjs"]` children, and two for each of `r e1_rt_excluded[2,"num_subjs"]` children. The final sample consistend of `r nrow(e1_clean_data %>% distinct(subj))` children: 
 
@@ -207,7 +208,7 @@ e2_clean_data <- e2_rt_exclusion_data %>%
 
 At the end of data collection, we had demographic information and data for `r e2_total_n` children. Of these, `r e2_excluded_n` were dropped due to notes from the experimenter indicating significant problems with the experiment. 
 
-`r e2_low_language_n` children then excluded due to hearing <`r MIN_LANG`% English at home, and `e2_r exclude_example_n` additional children were dropped from further analysis due to incorrect responses on at least 1 example trial, leaving us in doubt about whether they understood the task. 
+`r e2_low_language_n` children then excluded due to hearing <`r MIN_LANG`% English at home, and `r e2_exclude_example_n` additional children were dropped from further analysis due to incorrect responses on at least 1 example trial, leaving us in doubt about whether they understood the task. 
 
 We finally performed one last round of exclusions, dropping individual trials for which the log respones time was more than 3 standard deviations away from the mean. This criterion led to excluding `r mutate(e2_rt_excluded, total = n * num_subjs) %>% summarise(total = sum(total)) %>% as.numeric` total trials, one trial for each of `r e2_rt_excluded[1,"num_subjs"]` children, and two for each of `r e2_rt_excluded[2,"num_subjs"]` children. The final sample consistend of `r nrow(e2_clean_data %>% distinct(subj))` children:
 
