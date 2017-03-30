@@ -95,7 +95,7 @@ e1_rt_excluded <- e1_rt_exclusions %>%
 # Get the clean dataset
 e1_clean_data <-  e1_rt_exclusion_data %>%
   anti_join(e1_rt_exclusions) %>%
-  mutate(age_group = floor(age))
+  mutate(age_group = floor(age*2)/2)
 ```
 
 At the end of data collection, we had demographic information and data for `r e1_total_n` children. Of these, `r e1_excluded_n` were dropped due to notes from the experimenter indicating significant problems with the experiment. 
@@ -108,8 +108,9 @@ We finally performed one last round of exclusions, dropping individual trials fo
 # Print the number of participants in the final sample
 e1_clean_data %>%
   distinct(subj, .keep_all = TRUE) %>%
-  group_by(age_group, gender) %>%
-  summarise(n = n()) %>%
+  group_by(age_group) %>%
+  summarise(n = n(), 
+            prop_boys = mean(gender=="M")) %>%
   kable()
 ```
 
@@ -126,9 +127,10 @@ e1_age_trial_data <- e1_clean_data %>%
 ggplot(e1_age_trial_data, aes(x = age_group, y = mean, color = trialType, 
                            label = trialType)) +
   geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper),
-                  position = position_dodge(.25)) + 
+                  position = position_dodge(.05)) + 
   geom_hline(aes(yintercept = .5), linetype = "dashed") + 
   theme_bw(base_size = 14) + 
+  geom_line(aes(lty = trialType)) + 
   scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
                      name = "Proportion Correct") +
   scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
@@ -145,7 +147,7 @@ Now let's try fitting a model and estimating the continuous effect
 e1_lm <- glmer(correct ~ age * trialType + trialType * samePos + (1|subj), 
                family = "binomial", data = e1_clean_data)
 
-summary(e1_lm)
+kable(summary(e1_lm)$coefficients)
 ```
 
 ## Experiment 2 ##
@@ -203,7 +205,7 @@ e2_rt_excluded <- e2_rt_exclusions %>%
 # Get the clean dataset
 e2_clean_data <- e2_rt_exclusion_data %>%
   anti_join(e2_rt_exclusions) %>%
-  mutate(age_group = floor(age))
+  mutate(age_group = floor(age*2)/2)
 ```
 
 At the end of data collection, we had demographic information and data for `r e2_total_n` children. Of these, `r e2_excluded_n` were dropped due to notes from the experimenter indicating significant problems with the experiment. 
@@ -216,8 +218,9 @@ We finally performed one last round of exclusions, dropping individual trials fo
 # Print the number of participants in the final sample
 e2_clean_data %>%
   distinct(subj, .keep_all = TRUE) %>%
-  group_by(age_group, gender) %>%
-  summarise(n = n()) %>%
+  group_by(age_group) %>%
+  summarise(n = n(), 
+            prop_boys = mean(gender=="male")) %>%
   kable()
 ```
 
@@ -231,9 +234,10 @@ e2_age_trial_data <- e2_clean_data %>%
 ggplot(e2_age_trial_data, aes(x = age_group, y = mean, color = trialType, 
                            label = trialType)) +
   geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper),
-                  position = position_dodge(.25)) + 
+                  position = position_dodge(.05)) + 
   geom_hline(aes(yintercept = .5), linetype = "dashed") + 
   theme_bw(base_size = 14) + 
+  geom_line(aes(lty = trialType)) + 
   scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
                      name = "Proportion Correct") +
   scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
@@ -250,13 +254,13 @@ Now let's try fitting a model and estimating the continuous effect
 e2_lm <- glmer(correct ~ age + trialType +  samePos + (1|subj), 
                family = "binomial", data = e2_clean_data)
 
-summary(e2_lm)
+kable(summary(e2_lm)$coefficients)
 ```
 
 ## Experiment 3 ##
 
 Now let's look at both togehter 
-```{r e1_and2}
+```{r e1_and_2}
 all_data <- bind_rows(e1_clean_data, e2_clean_data) %>%
   mutate(trialType = factor(trialType, levels = c("Same", "Switch", "New Label")))
 
@@ -269,7 +273,8 @@ age_trial_data <- all_data %>%
 ggplot(age_trial_data, aes(x = age_group, y = mean, color = trialType, 
                            label = trialType, shape = Experiment)) +
   geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper),
-                  position = position_dodge(.25)) + 
+                  position = position_dodge(.05)) + 
+  geom_line(aes(lty = trialType)) + 
   geom_hline(aes(yintercept = .5), linetype = "dashed") + 
   theme_bw(base_size = 14) + 
   scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
@@ -291,5 +296,5 @@ all_lm <- glmer(correct ~ age * trialType + trialType * samePos + (1|subj),
                control=glmerControl(optimizer="bobyqa",
                             optCtrl=list(maxfun=2e5)))
 
-summary(all_lm)
+kable(summary(all_lm)$coefficients)
 ```
