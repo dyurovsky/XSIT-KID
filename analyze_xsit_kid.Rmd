@@ -1,0 +1,294 @@
+---
+title: "Developmental changed in Statistical Word Learning"
+author: "Daniel Yurovsky & Michael C. Frank"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    highlight: tango
+    theme: flatly
+    code_folding: hide
+    collapsed: true
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include = FALSE}
+library(knitr)
+options(scipen = 1, digits = 3)
+opts_chunk$set(message=FALSE, warning=FALSE, fig.align = "center", cache = TRUE)
+```
+
+```{r load_libraries, cache = FALSE, include = FALSE}
+library(merTools)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+library(langcog)
+library(directlabels)
+library(lme4)
+library(boot)
+```
+
+Set constants for exclusion, etc.
+```{r constants}
+MIN_AGE = 3
+MAX_AGE = 6
+MIN_LANG = 75
+MIN_EXAMPLE_CORRECT = 8
+RT_SDS = 3
+```
+## Experiment 1 ##
+
+Read in the data and do exclusions
+```{r e1_load_data}
+e1_data <- read_csv("data/xsit_min.csv") %>%
+  filter(age >=MIN_AGE, age < MAX_AGE) %>%
+  mutate(Experiment = "Experiment 1") %>%
+  mutate(trialType = factor(trialType, levels = c("Same", "Switch", "New Label")))
+
+# Compute total number of participants
+e1_total_n <- e1_data %>%
+  distinct(subj) %>%
+  nrow()
+
+# Compute the number excluded due to experimenter notes
+e1_excluded_n <- e1_data %>%
+  distinct(subj, include) %>%
+  filter(include == FALSE) %>%
+  nrow()
+
+# Drop children who do not hear English more than 75% of the time
+e1_low_language_n <- e1_data %>%
+  distinct(subj, include, language) %>%
+  filter(include, language < MIN_LANG ) %>%
+  nrow()
+
+# compute the number excluded due to incorrect responses on example trials
+e1_exclude_example_n <- e1_data %>%
+  filter(include, (language > MIN_LANG | is.na(language) & setting == "Bing")) %>%
+  filter(example_correct < MIN_EXAMPLE_CORRECT) %>%
+  distinct(subj) %>%
+  nrow()
+
+# Compute mean and SD of log response times for exclusion 
+e1_rt_exclusion_data <- e1_data %>%
+  filter(include, (language > MIN_LANG | is.na(language))) %>%
+  filter(example_correct >= MIN_EXAMPLE_CORRECT) %>%
+  mutate(rt = log(rt), 
+         mean_rt = mean(rt),
+         sd_rt = sd(rt))
+
+# Exclude trials for children who were 3 SDs above or below the mean log response times
+e1_rt_exclusions <- e1_rt_exclusion_data %>%
+  filter((rt < mean_rt - RT_SDS * sd_rt | rt > mean_rt + RT_SDS * sd_rt)
+         & !overwrite) 
+
+# Find the number of subjects for whom trials were excluded
+e1_rt_excluded <- e1_rt_exclusions %>%
+  group_by(subj) %>%
+  summarise(n = n()) %>%
+  group_by(n) %>%
+  summarise(num_subjs = n())
+  
+# Get the clean dataset
+e1_clean_data <-  e1_rt_exclusion_data %>%
+  anti_join(e1_rt_exclusions) %>%
+  mutate(age_group = floor(age))
+```
+
+At the end of data collection, we had demographic information and data for `r e1_total_n` children. Of these, `r e1_excluded_n` were dropped due to notes from the experimenter indicating significant problems with the experiment. 
+
+`r e1_low_language_n` children then excluded due to hearing <`r MIN_LANG`% English at home, and `e1_r exclude_example_n` additional children were dropped from further analysis due to incorrect responses on at least 1 example trial, leaving us in doubt about whether they understood the task. 
+
+We finally performed one last round of exclusions, dropping individual trials for which the log respones time was more than 3 standard deviations away from the mean. This criterion led to excluding `r mutate(e1_rt_excluded, total = n * num_subjs) %>% summarise(total = sum(total)) %>% as.numeric` total trials, one trial for each of `r e1_rt_excluded[1,"num_subjs"]` children, and two for each of `r e1_rt_excluded[2,"num_subjs"]` children. The final sample consistend of `r nrow(e1_clean_data %>% distinct(subj))` children: 
+
+```{r e1_data_kable}
+# Print the number of participants in the final sample
+e1_clean_data %>%
+  distinct(subj, .keep_all = TRUE) %>%
+  group_by(age_group, gender) %>%
+  summarise(n = n()) %>%
+  kable()
+```
+
+Let's plot some quick descriptives--how did kids do on the different trial types over age?
+
+First, let's look at binning by year of age. 
+```{r e1_descriptives}
+e1_age_trial_data <- e1_clean_data %>%
+  group_by(age_group, trialType, subj) %>%
+  summarise(correct = mean(correct)) %>%
+  group_by(age_group, trialType) %>%
+  multi_boot_standard("correct", na.rm = T)
+
+ggplot(e1_age_trial_data, aes(x = age_group, y = mean, color = trialType, 
+                           label = trialType)) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper),
+                  position = position_dodge(.25)) + 
+  geom_hline(aes(yintercept = .5), linetype = "dashed") + 
+  theme_bw(base_size = 14) + 
+  scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
+                     name = "Proportion Correct") +
+  scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
+  theme(panel.grid = element_blank()) + 
+  theme(legend.position = "none", panel.grid = element_blank(),
+        axis.title.x=element_text(vjust=-.5), 
+        axis.title.y=element_text(vjust=1)) +
+  geom_dl(method = list("last.qp", cex=1, dl.trans(x = x +.5))) + 
+  scale_color_brewer(palette = "Set1")
+```
+
+Now let's try fitting a model and estimating the continuous effect
+```{r e1_lm}
+e1_lm <- glmer(correct ~ age * trialType + trialType * samePos + (1|subj), 
+               family = "binomial", data = e1_clean_data)
+
+summary(e1_lm)
+```
+
+## Experiment 2 ##
+
+Read in the data and do exclusions
+```{r e2_load_data}
+e2_data <- read_csv("data/xsit_me.csv") %>%
+  filter(age >=3, age < 6) %>%
+  mutate(Experiment = "Experiment 2") %>%
+  mutate(trialType = factor(trialType, levels = c("Same", "Switch", "New Label")))
+
+# Compute total number of participants
+e2_total_n <- e2_data %>%
+  distinct(subj) %>%
+  nrow()
+
+# Compute the number excluded due to experimenter notes
+e2_excluded_n <- e2_data %>%
+  distinct(subj, include) %>%
+  filter(include == FALSE) %>%
+  nrow()
+
+# Drop children who do not hear English more than 75% of the time
+e2_low_language_n <- e2_data %>%
+  distinct(subj, include, language) %>%
+  filter(include, language < 75 ) %>%
+  nrow()
+
+# compute the number excluded due to incorrect responses on example trials
+e2_exclude_example_n <- e2_data %>%
+  filter(include, (language > 75 | is.na(language))) %>%
+  filter(example_correct < 8) %>%
+  distinct(subj) %>%
+  nrow()
+
+# Compute mean and SD of log response times for exclusion 
+e2_rt_exclusion_data <- e2_data %>%
+  filter(include, (language > 75 | is.na(language))) %>%
+  filter(example_correct == 8) %>%
+  mutate(rt = log(rt), 
+         mean_rt = mean(rt),
+         sd_rt = sd(rt))
+
+# Exclude trials for children who were 3 SDs above or below the mean log response times
+e2_rt_exclusions <- e2_rt_exclusion_data %>%
+  filter((rt < mean_rt - 3 * sd_rt | rt > mean_rt + 3 * sd_rt) & !overwrite) 
+
+# Find the number of subjects for whom trials were excluded
+e2_rt_excluded <- e2_rt_exclusions %>%
+  group_by(subj) %>%
+  summarise(n = n()) %>%
+  group_by(n) %>%
+  summarise(num_subjs = n())
+  
+# Get the clean dataset
+e2_clean_data <- e2_rt_exclusion_data %>%
+  anti_join(e2_rt_exclusions) %>%
+  mutate(age_group = floor(age))
+```
+
+At the end of data collection, we had demographic information and data for `r e2_total_n` children. Of these, `r e2_excluded_n` were dropped due to notes from the experimenter indicating significant problems with the experiment. 
+
+`r e2_low_language_n` children then excluded due to hearing <`r MIN_LANG`% English at home, and `e2_r exclude_example_n` additional children were dropped from further analysis due to incorrect responses on at least 1 example trial, leaving us in doubt about whether they understood the task. 
+
+We finally performed one last round of exclusions, dropping individual trials for which the log respones time was more than 3 standard deviations away from the mean. This criterion led to excluding `r mutate(e2_rt_excluded, total = n * num_subjs) %>% summarise(total = sum(total)) %>% as.numeric` total trials, one trial for each of `r e2_rt_excluded[1,"num_subjs"]` children, and two for each of `r e2_rt_excluded[2,"num_subjs"]` children. The final sample consistend of `r nrow(e2_clean_data %>% distinct(subj))` children:
+
+```{r data_kable}
+# Print the number of participants in the final sample
+e2_clean_data %>%
+  distinct(subj, .keep_all = TRUE) %>%
+  group_by(age_group, gender) %>%
+  summarise(n = n()) %>%
+  kable()
+```
+
+```{r descriptives}
+e2_age_trial_data <- e2_clean_data %>%
+  group_by(age_group, trialType, subj) %>%
+  summarise(correct = mean(correct)) %>%
+  group_by(age_group, trialType) %>%
+  multi_boot_standard("correct", na.rm = T)
+
+ggplot(e2_age_trial_data, aes(x = age_group, y = mean, color = trialType, 
+                           label = trialType)) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper),
+                  position = position_dodge(.25)) + 
+  geom_hline(aes(yintercept = .5), linetype = "dashed") + 
+  theme_bw(base_size = 14) + 
+  scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
+                     name = "Proportion Correct") +
+  scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
+  theme(panel.grid = element_blank()) + 
+  theme(legend.position = "none", panel.grid = element_blank(),
+        axis.title.x=element_text(vjust=-.5), 
+        axis.title.y=element_text(vjust=1)) +
+  geom_dl(method = list("last.qp", cex=1, dl.trans(x = x +.5))) + 
+  scale_color_brewer(palette = "Set1")
+```
+
+Now let's try fitting a model and estimating the continuous effect
+```{r e2_lm}
+e2_lm <- glmer(correct ~ age + trialType +  samePos + (1|subj), 
+               family = "binomial", data = e2_clean_data)
+
+summary(e2_lm)
+```
+
+## Experiment 3 ##
+
+Now let's look at both togehter 
+```{r e1_and2}
+all_data <- bind_rows(e1_clean_data, e2_clean_data) %>%
+  mutate(trialType = factor(trialType, levels = c("Same", "Switch", "New Label")))
+
+age_trial_data <- all_data %>%
+  group_by(Experiment,age_group, trialType, subj) %>%
+  summarise(correct = mean(correct)) %>%
+  group_by(Experiment,age_group, trialType) %>%
+  multi_boot_standard("correct", na.rm = T)
+
+ggplot(age_trial_data, aes(x = age_group, y = mean, color = trialType, 
+                           label = trialType, shape = Experiment)) +
+  geom_pointrange(aes(ymin = ci_lower, ymax = ci_upper),
+                  position = position_dodge(.25)) + 
+  geom_hline(aes(yintercept = .5), linetype = "dashed") + 
+  theme_bw(base_size = 14) + 
+  scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
+                     name = "Proportion Correct") +
+  scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
+  theme(panel.grid = element_blank()) + 
+  theme(legend.position = "none", panel.grid = element_blank(),
+        axis.title.x=element_text(vjust=-.5), 
+        axis.title.y=element_text(vjust=1)) +
+  geom_dl(method = list("last.qp", cex=1, dl.trans(x = x +.5))) + 
+  scale_color_brewer(palette = "Set1")
+
+```
+
+Fit the big mer
+```{r all_lm}
+all_lm <- glmer(correct ~ age * trialType + trialType * samePos + (1|subj), 
+               family = "binomial", data = all_data,
+               control=glmerControl(optimizer="bobyqa",
+                            optCtrl=list(maxfun=2e5)))
+
+summary(all_lm)
+```
