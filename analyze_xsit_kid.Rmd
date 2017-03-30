@@ -133,7 +133,7 @@ ggplot(e1_age_trial_data, aes(x = age_group, y = mean, color = trialType,
   geom_line(aes(lty = trialType)) + 
   scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
                      name = "Proportion Correct") +
-  scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
+  scale_x_continuous(limits=c(2.8,5.9), name = "Age Group") + 
   theme(panel.grid = element_blank()) + 
   theme(legend.position = "none", panel.grid = element_blank(),
         axis.title.x=element_text(vjust=-.5), 
@@ -240,7 +240,7 @@ ggplot(e2_age_trial_data, aes(x = age_group, y = mean, color = trialType,
   geom_line(aes(lty = trialType)) + 
   scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
                      name = "Proportion Correct") +
-  scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
+  scale_x_continuous(limits=c(2.8,5.9), name = "Age Group") + 
   theme(panel.grid = element_blank()) + 
   theme(legend.position = "none", panel.grid = element_blank(),
         axis.title.x=element_text(vjust=-.5), 
@@ -279,7 +279,7 @@ ggplot(age_trial_data, aes(x = age_group, y = mean, color = trialType,
   theme_bw(base_size = 14) + 
   scale_y_continuous(limits = c(0,1),breaks=c(0,.25,.5,.75,1),
                      name = "Proportion Correct") +
-  scale_x_continuous(limits=c(2.8,5.3), name = "Age Group") + 
+  scale_x_continuous(limits=c(2.8,5.9), name = "Age Group") + 
   theme(panel.grid = element_blank()) + 
   theme(legend.position = "none", panel.grid = element_blank(),
         axis.title.x=element_text(vjust=-.5), 
